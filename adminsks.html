@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKS Store | Admin Dashboard</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+        body { background-color: #f8fafc; color: #0f172a; padding: 2rem 5%; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 1rem; }
+        .live-indicator { background: #bbf7d0; color: #16a34a; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.85rem; font-weight: bold; animation: blink 1.5s infinite; }
+        @keyframes blink { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        
+        .admin-layout { display: grid; grid-template-columns: 1.1fr 1.9fr; gap: 2rem; }
+        
+        /* Product Form Panels CSS Styling Layout */
+        .inventory-panel, .orders-panel { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .panel-title { font-size: 1.3rem; margin-bottom: 1.2rem; color: #2874f0; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
+        
+        .form-group { margin-bottom: 1rem; text-align: left; }
+        .form-group label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 0.3rem; }
+        .form-group input, .form-group textarea { width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; outline: none; }
+        .form-group input:focus { border-color: #2874f0; }
+        
+        .submit-btn { background: #16a34a; color: white; border: none; width: 100%; padding: 0.75rem; border-radius: 6px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        .submit-btn:hover { background: #15803d; }
+
+        .order-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.2rem; margin-bottom: 1.2rem; }
+        .order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+        .order-id { font-weight: bold; color: #2874f0; font-size: 1.1rem; }
+        .order-time { font-size: 0.8rem; color: #64748b; }
+        
+        .cust-details { background: white; border: 1px solid #e2e8f0; padding: 0.6rem; border-radius: 6px; margin-bottom: 0.8rem; font-size: 0.9rem; }
+        .items-list { margin-left: 1.2rem; margin-bottom: 0.8rem; font-size: 0.9rem; }
+        .footer-row { display: flex; justify-content: space-between; align-items: center; font-weight: bold; border-top: 1px dashed #cbd5e1; padding-top: 0.8rem; }
+        
+        .status-select { padding: 0.3rem; border-radius: 4px; border: 1px solid #cbd5e1; font-weight: bold; }
+        .status-placed { background: #dbeafe; color: #1e40af; }
+        .status-done { background: #dcfce7; color: #166534; }
+        #no-orders-msg { text-align: center; color: #64748b; font-size: 1rem; padding: 2rem 0; }
+
+        @media(max-width: 968px) { .admin-layout { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <h2>?? SKS Online Central Command Panel</h2>
+            <p style="color: #64748b; font-size: 0.9rem;">Add Products & Manage Cloud Orders Realtime</p>
+        </div>
+        <div class="live-indicator">? LIVE SYNC ACTIVE</div>
+    </header>
+
+    <audio id="notification-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-500.wav" preload="auto"></audio>
+
+    <div class="admin-layout">
+        
+        <div class="inventory-panel">
+            <h3 class="panel-title">Add New Product ?</h3>
+            <form id="product-upload-form" onsubmit="handleProductUpload(event)">
+                <div class="form-group">
+                    <label>Product Name</label>
+                    <input type="text" id="prod-name" placeholder="e.g., Mustard Oil (1L)" required>
+                </div>
+                <div class="form-group">
+                    <label>Price (?)</label>
+                    <input type="number" id="prod-price" placeholder="e.g., 165" required>
+                </div>
+                <div class="form-group">
+                    <label>Product Description</label>
+                    <textarea id="prod-desc" placeholder="e.g., Shuddh kachchi ghani sarso tel" rows="2" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Product Image URL (Optional)</label>
+                    <input type="url" id="prod-img" placeholder="Paste direct image url link here">
+                </div>
+                <button type="submit" class="submit-btn">Save Product to Dukaan</button>
+            </form>
+        </div>
+
+        <div class="orders-panel">
+            <h3 class="panel-title">Live Customer Orders Tracker ??</h3>
+            <div id="no-orders-msg">Waiting for incoming cloud sync data...</div>
+            <div id="orders-container"></div>
+        </div>
+
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCy9rU1T-L7viJOTcbB-YyoKeprDywPCTw",
+            databaseURL: "https://sks-online-d8e4c-default-rtdb.firebaseio.com",
+            projectId: "sks-online-d8e4c"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        const ordersContainer = document.getElementById('orders-container');
+        const noOrdersMsg = document.getElementById('no-orders-msg');
+        const alertSound = document.getElementById('notification-sound');
+        let initialLoadDone = false;
+
+        // Inventory Product Add Pusher Logic
+        function handleProductUpload(event) {
+            event.preventDefault();
+            const name = document.getElementById('prod-name').value;
+            const price = parseInt(document.getElementById('prod-price').value);
+            const desc = document.getElementById('prod-desc').value;
+            const img = document.getElementById('prod-img').value;
+
+            const productId = 'PROD-' + Date.now();
+
+            database.ref('products/' + productId).set({
+                ProductId: productId,
+                Name: name,
+                Price: price,
+                Desc: desc,
+                Image: img
+            }).then(() => {
+                alert(`?? Product "${name}" successfully saved and published live to customer store app!`);
+                document.getElementById('product-upload-form').reset();
+            }).catch(err => alert("Error saving product: " + err.message));
+        }
+
+        // Live Realtime Synchronization Core Stream listener Node
+        database.ref('orders').on('value', (snapshot) => {
+            const ordersData = snapshot.val();
+            if (!ordersData) { ordersContainer.innerHTML = ''; noOrdersMsg.style.display = 'block'; return; }
+
+            noOrdersMsg.style.display = 'none'; ordersContainer.innerHTML = '';
+            const sortedIds = Object.keys(ordersData).reverse();
+
+            sortedIds.forEach(id => {
+                const order = ordersData[id];
+                let itemsHtml = "";
+                order.Items.forEach(item => { itemsHtml += `<li>${item.name} - <strong>${item.qty} pcs</strong></li>`; });
+
+                const isCompleted = order.Status === "Delivered" ? "status-done" : "status-placed";
+                ordersContainer.innerHTML += `
+                    <div class="order-card">
+                        <div class="order-header">
+                            <span class="order-id">#${order.OrderId}</span>
+                            <span class="order-time">?? ${order.Time}</span>
+                        </div>
+                        <div class="cust-details">
+                            <p><strong>Grahak:</strong> ${order.CustomerName} (ID: ${order.CustomerId})</p>
+                            <p><strong>Mobile:</strong> ${order.Phone}</p>
+                            <p><strong>Address:</strong> ${order.Address}</p>
+                        </div>
+                        <ul class="items-list">${itemsHtml}</ul>
+                        <div class="footer-row">
+                            <div>Total Bill: <span style="color:#16a34a;">?${order.GrandTotal}</span></div>
+                            <div>
+                                <select class="status-select ${isCompleted}" onchange="updateStatus('${order.OrderId}', this.value)">
+                                    <option value="Order Placed Successfully" ${order.Status !== 'Delivered' ? 'selected' : ''}>Pending Delivery</option>
+                                    <option value="Delivered" ${order.Status === 'Delivered' ? 'selected' : ''}>? Delivered</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (initialLoadDone) { alertSound.play().catch(e => {}); }
+            initialLoadDone = true;
+        });
+
+        function updateStatus(orderId, newStatus) {
+            database.ref('orders/' + orderId).update({ Status: newStatus });
+        }
+    </script>
+</body>
+</html>
