@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKS Online | Online Kirana Store</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+        :root {
+            --primary: #2874f0; 
+            --secondary: #fb641b; 
+            --bg-gradient: linear-gradient(135deg, #2874f0 0%, #104fa1 100%);
+            --card-bg: #ffffff;
+            --text-dark: #212121;
+        }
+
+        body { background: #f1f3f6; color: var(--text-dark); min-height: 100vh; }
+        .hidden { display: none !important; }
+
+        .auth-screen {
+            min-height: 100vh; display: flex; justify-content: center; align-items: center;
+            background: var(--bg-gradient); padding: 1.5rem;
+        }
+        .auth-card {
+            background: var(--card-bg); border-radius: 16px; padding: 2.5rem 2rem;
+            width: 100%; max-width: 420px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); text-align: center;
+        }
+        .logo-area { font-size: 2.2rem; font-weight: 800; color: var(--primary); font-style: italic; margin-bottom: 0.5rem; }
+        .logo-area span { color: var(--secondary); }
+        .subtitle { color: #666; font-size: 0.95rem; margin-bottom: 2rem; }
+
+        .form-group { text-align: left; margin-bottom: 1.2rem; }
+        .form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem; color: #333; }
+        .form-group input, .form-group textarea {
+            width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; outline: none;
+        }
+
+        .auth-btn {
+            background: var(--primary); color: white; border: none; width: 100%; padding: 0.85rem;
+            border-radius: 6px; font-weight: 700; font-size: 1rem; cursor: pointer; margin-top: 0.5rem;
+        }
+        .switch-mode { margin-top: 1.5rem; font-size: 0.9rem; color: #555; }
+        .switch-mode span { color: var(--primary); cursor: pointer; font-weight: 600; }
+        .otp-badge { background: #f0fdf4; border: 1px dashed #16a34a; color: #16a34a; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-weight: bold; }
+
+        header { background: var(--primary); color: white; padding: 1rem 5%; display: flex; justify-content: space-between; align-items: center; }
+        .user-badge { background: rgba(255,255,255,0.15); padding: 0.4rem 0.8rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+        .logout-link { color: #ffbcbc; cursor: pointer; font-size: 0.85rem; margin-left: 1rem; font-weight: bold; }
+        
+        .store-info { background: #fff3e3; color: #8a5300; padding: 0.6rem 5%; font-size: 0.85rem; text-align: center; font-weight: 600; }
+        
+        /* Dashboard Grid Layout split into 3 parts for Tracking */
+        .main-container { display: grid; grid-template-columns: 1.8fr 1.2fr; gap: 2rem; padding: 2rem 5%; }
+        
+        .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.5rem; }
+        .product-card { background: white; border-radius: 8px; padding: 1.2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; flex-direction: column; justify-content: space-between;}
+        .product-img { width: 100%; height: 140px; object-fit: cover; border-radius: 4px; background: #f1f3f6; margin-bottom: 0.8rem; }
+        .product-card h4 { font-size: 1.1rem; margin-bottom: 0.3rem; color: #212121; }
+        .product-desc { font-size: 0.8rem; color: #666; margin-bottom: 0.8rem; height: 35px; overflow: hidden; }
+        .product-price { font-weight: 700; font-size: 1.3rem; margin-bottom: 0.8rem; color: #000; }
+        
+        .add-btn { background: #fff; color: var(--primary); border: 1px solid #e0e0e0; padding: 0.5rem; cursor: pointer; width: 100%; font-weight: bold; border-radius: 4px;}
+        .add-btn:hover { background: #f0f5ff; border-color: var(--primary); }
+
+        .side-panels { display: flex; flex-direction: column; gap: 1.5rem; }
+        .cart-section, .tracking-section { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .cart-item { display: flex; justify-content: space-between; margin-bottom: 0.8rem; padding-bottom: 0.4rem; border-bottom: 1px solid #f1f5f9; }
+        .order-btn { background: var(--secondary); color: white; border: none; width: 100%; padding: 0.9rem; font-weight: bold; text-transform: uppercase; cursor: pointer; margin-top: 1rem; border-radius: 4px;}
+        
+        /* Order Tracking List items styling */
+        .track-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 0.8rem; border-radius: 6px; margin-bottom: 0.8rem; font-size: 0.85rem; }
+        .status-badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 12px; font-weight: bold; font-size: 0.75rem; margin-top: 0.4rem; }
+        .status-pending { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+        .status-delivered { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+
+        @media(max-width: 968px) { .main-container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+    <div id="auth-view" class="auth-screen">
+        <div id="login-card" class="auth-card">
+            <div class="logo-area">SkS<span>STORE</span></div>
+            <p class="subtitle">Welcome Back! Login to your account</p>
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label>Customer ID or Phone Number</label>
+                    <input type="text" id="login-id" placeholder="Enter ID or Phone" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-pass" placeholder="Enter password" required>
+                </div>
+                <button type="submit" class="auth-btn">Login</button>
+            </form>
+            <div class="switch-mode">New Customer? <span onclick="toggleAuthMode('signup')">Sign Up Here</span></div>
+        </div>
+
+        <div id="signup-card" class="auth-card hidden">
+            <div class="logo-area">SkS<span>STORE</span></div>
+            <p class="subtitle">Create your virtual store profile account</p>
+            <form onsubmit="triggerVirtualOTP(event)">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="reg-name" placeholder="Enter Full Name" required>
+                </div>
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="tel" id="reg-phone" placeholder="Enter Phone Number" required>
+                </div>
+                <div class="form-group">
+                    <label>Full Delivery Address</label>
+                    <textarea id="reg-address" placeholder="Mauje Tola, Ward No.3, Gopalganj" rows="2" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Create Password</label>
+                    <input type="password" id="reg-pass" placeholder="Set secure password" required>
+                </div>
+                <button type="submit" class="auth-btn" style="background: var(--secondary);">Send Virtual OTP</button>
+            </form>
+            <div class="switch-mode">Already registered? <span onclick="toggleAuthMode('login')">Login</span></div>
+        </div>
+
+        <div id="otp-card" class="auth-card hidden">
+            <div class="logo-area">SkS<span>STORE</span></div>
+            <p class="subtitle">Security Verification Gate</p>
+            <div id="otp-display-box" class="otp-badge">Generating OTP...</div>
+            <form onsubmit="verifyAndRegister(event)">
+                <div class="form-group">
+                    <label>Enter 4-Digit OTP Code</label>
+                    <input type="number" id="input-otp" placeholder="Enter OTP code" required>
+                </div>
+                <button type="submit" class="auth-btn">Verify & Create Account</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="store-view" class="hidden">
+        <header>
+            <h2>?? SKS Online</h2>
+            <div style="display: flex; align-items: center;">
+                <div class="user-badge" id="nav-user-display">ID: Loading...</div>
+                <span class="logout-link" onclick="logout()">Logout</span>
+            </div>
+        </header>
+
+        <div class="store-info">
+            ?? Location: Mauje Tola, Ward No.3, Bakharaur, Bishunpura, Sidhawaliya, Gopalganj, Bihar 841407
+        </div>
+
+        <div class="main-container">
+            <div>
+                <h3 style="margin-bottom:1rem; border-bottom: 2px solid var(--primary); padding-bottom:0.5rem; color: var(--primary);">Dukaan Ke Products</h3>
+                <div id="dynamic-products-container" class="products-grid">
+                    </div>
+            </div>
+
+            <div class="side-panels">
+                
+                <div class="cart-section">
+                    <h3>PRICE DETAILS</h3>
+                    <br>
+                    <div id="cart-items-container"><p style="color:#878787;">Cart is empty.</p></div>
+                    <hr style="margin: 1rem 0; border: none; border-top: 1px solid #f0f0f0;">
+                    
+                    <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom:1rem;">
+                        <span>Total Amount:</span>
+                        <span id="cart-total">?0</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Select Delivery Distance</label>
+                        <select id="delivery-distance" style="width:100%; padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;" onchange="updateCartTotals()">
+                            <option value="under_1km">Under 1 KM (Min Order ?200)</option>
+                            <option value="1to2km">1 KM to 2 KM (Min Order ?500)</option>
+                        </select>
+                    </div>
+                    <div id="rules-warning" style="background:#fef2f2; color:#991b1b; padding:0.6rem; font-size:0.85rem; border-radius:4px; display:none; margin-bottom:1rem;"></div>
+
+                    <button class="order-btn" onclick="checkoutSecureOrder()">Place Order Instantly</button>
+                </div>
+
+                <div class="tracking-section">
+                    <h3 style="color: #16a34a; margin-bottom: 1rem; border-bottom: 2px solid #16a34a; padding-bottom: 0.4rem;">My Orders History ??</h3>
+                    <div id="tracking-container">
+                        <p style="color:#878787; font-size: 0.9rem;">No orders placed yet.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCy9rU1T-L7viJOTcbB-YyoKeprDywPCTw",
+            databaseURL: "https://sks-online-d8e4c-default-rtdb.firebaseio.com",
+            projectId: "sks-online-d8e4c"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        let generatedOTP = null, tempUserData = null, currentUser = null, cart = [], totalAmount = 0;
+
+        function toggleAuthMode(mode) {
+            document.getElementById('login-card').classList.add('hidden');
+            document.getElementById('signup-card').classList.add('hidden');
+            document.getElementById('otp-card').classList.add('hidden');
+            if(mode === 'login') document.getElementById('login-card').classList.remove('hidden');
+            if(mode === 'signup') document.getElementById('signup-card').classList.remove('hidden');
+        }
+
+        function triggerVirtualOTP(event) {
+            event.preventDefault();
+            generatedOTP = Math.floor(1000 + Math.random() * 9000);
+            tempUserData = {
+                name: document.getElementById('reg-name').value,
+                phone: document.getElementById('reg-phone').value,
+                address: document.getElementById('reg-address').value,
+                pass: document.getElementById('reg-pass').value
+            };
+            document.getElementById('signup-card').classList.add('hidden');
+            document.getElementById('otp-card').classList.remove('hidden');
+            document.getElementById('otp-display-box').innerText = `?? VIRTUAL OTP SENT: ${generatedOTP}`;
+        }
+
+        function verifyAndRegister(event) {
+            event.preventDefault();
+            if (parseInt(document.getElementById('input-otp').value) !== generatedOTP) { alert("Incorrect OTP!"); return; }
+
+            const customId = 'SKS-CUST-' + Math.floor(1000 + Math.random() * 9000);
+            database.ref('users/' + customId).set({
+                CustomerId: customId, Name: tempUserData.name, Phone: tempUserData.phone, Address: tempUserData.address, Password: tempUserData.pass
+            }).then(() => {
+                alert(`Account successfully created! ID: ${customId}`);
+                document.getElementById('login-id').value = customId;
+                toggleAuthMode('login');
+            });
+        }
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const inputId = document.getElementById('login-id').value;
+            const inputPass = document.getElementById('login-pass').value;
+
+            database.ref('users').once('value', (snapshot) => {
+                let found = false;
+                snapshot.forEach((child) => {
+                    const data = child.val();
+                    if ((data.CustomerId === inputId || data.Phone === inputId) && data.Password === inputPass) {
+                        currentUser = data; found = true;
+                    }
+                });
+
+                if (found) {
+                    document.getElementById('auth-view').classList.add('hidden');
+                    document.getElementById('store-view').classList.remove('hidden');
+                    document.getElementById('nav-user-display').innerText = `?? ${currentUser.Name} (${currentUser.CustomerId})`;
+                    // Start Realtime Streams
+                    syncCatalogProducts();
+                    syncCustomerOrders();
+                    updateCartTotals();
+                } else { alert("Invalid Credentials!"); }
+            });
+        }
+
+        // Realtime Catalog Engine Listener Node mapping
+        function syncCatalogProducts() {
+            const container = document.getElementById('dynamic-products-container');
+            database.ref('products').on('value', (snapshot) => {
+                const productsData = snapshot.val();
+                if(!productsData) {
+                    container.innerHTML = `<p style='color:#666; padding:1rem;'>Dukaan me abhi koi product nahi hai. Admin panel se add karein!</p>`;
+                    return;
+                }
+                container.innerHTML = '';
+                Object.keys(productsData).forEach(key => {
+                    const prod = productsData[key];
+                    const imgUrl = prod.Image || "https://placehold.co/200x140?text=SKS+Online";
+                    container.innerHTML += `
+                        <div class="product-card">
+                            <img src="${imgUrl}" class="product-img" onerror="this.src='https://placehold.co/200x140?text=SKS+Online'">
+                            <h4>${prod.Name}</h4>
+                            <p class="product-desc">${prod.Desc}</p>
+                            <div class="product-price">?${prod.Price}</div>
+                            <button class="add-btn" onclick="addToCart('${prod.Name}', ${prod.Price})">Add to Cart</button>
+                        </div>
+                    `;
+                });
+            });
+        }
+
+        // Live Personalized Order Tracker Listener Engine Node mapping
+        function syncCustomerOrders() {
+            const trackContainer = document.getElementById('tracking-container');
+            database.ref('orders').on('value', (snapshot) => {
+                const allOrders = snapshot.val();
+                if(!allOrders) return;
+
+                trackContainer.innerHTML = '';
+                let hasOrders = false;
+
+                Object.keys(allOrders).reverse().forEach(key => {
+                    const order = allOrders[key];
+                    // Filters system logs strictly using logged in profile data binder
+                    if(order.CustomerId === currentUser.CustomerId) {
+                        hasOrders = true;
+                        const isDelivered = order.Status === "Delivered";
+                        const badgeClass = isDelivered ? "status-delivered" : "status-pending";
+                        const displayStatus = isDelivered ? "? Delivered" : "? Pending Delivery";
+
+                        let itemsSummary = order.Items.map(i => `${i.name} (${i.qty})`).join(', ');
+
+                        trackContainer.innerHTML += `
+                            <div class="track-card">
+                                <div><strong>Order ID:</strong> #${order.OrderId}</div>
+                                <div style="color:#64748b; font-size:0.75rem; margin:0.2rem 0;">${order.Time}</div>
+                                <div style="margin:0.3rem 0; color:#334155;">${itemsSummary}</div>
+                                <div><strong>Total:</strong> ?${order.GrandTotal}</div>
+                                <span class="status-badge ${badgeClass}">${displayStatus}</span>
+                            </div>
+                        `;
+                    }
+                });
+
+                if(!hasOrders) {
+                    trackContainer.innerHTML = `<p style="color:#878787; font-size: 0.9rem;">No orders placed yet.</p>`;
+                }
+            });
+        }
+
+        function logout() { currentUser = null; cart = []; document.getElementById('store-view').classList.add('hidden'); document.getElementById('auth-view').classList.remove('hidden'); toggleAuthMode('login'); }
+        function addToCart(name, price) { let existingItem = cart.find(item => item.name === name); if (existingItem) { existingItem.qty++; } else { cart.push({ name: name, price: price, qty: 1 }); } updateCartTotals(); }
+
+        function updateCartTotals() {
+            const container = document.getElementById('cart-items-container');
+            const totalDisplay = document.getElementById('cart-total');
+            if (cart.length === 0) { container.innerHTML = '<p style="color:#878787;">Cart is empty.</p>'; totalDisplay.innerText = '?0'; return; }
+            container.innerHTML = ''; totalAmount = 0;
+            cart.forEach(item => {
+                totalAmount += (item.price * item.qty);
+                container.innerHTML += `<div class="cart-item"><div><strong>${item.name}</strong><br><small>?${item.price} x ${item.qty}</small></div></div>`;
+            });
+            totalDisplay.innerText = '?' + totalAmount;
+            checkDeliveryRules();
+        }
+
+        function checkDeliveryRules() {
+            const dist = document.getElementById('delivery-distance').value; const warningBox = document.getElementById('rules-warning');
+            if (cart.length === 0) { warningBox.style.display = 'none'; return false; }
+            if (dist === 'under_1km' && totalAmount < 200) { warningBox.innerText = '?? Minimum order of ?200 is required for under 1KM delivery.'; warningBox.style.display = 'block'; return false; } 
+            else if (dist === '1to2km' && totalAmount < 500) { warningBox.innerText = '?? Minimum order of ?500 is required for 1-2KM delivery.'; warningBox.style.display = 'block'; return false; } 
+            else { warningBox.style.display = 'none'; return true; }
+        }
+
+        function checkoutSecureOrder() {
+            if(cart.length === 0 || !checkDeliveryRules()) { alert('Dukan ke rules poore nahi hain!'); return; }
+            const orderId = 'SKS-ORD-' + Math.floor(100000 + Math.random() * 900000);
+            database.ref('orders/' + orderId).set({
+                OrderId: orderId, CustomerId: currentUser.CustomerId, CustomerName: currentUser.Name,
+                Phone: currentUser.Phone, Address: currentUser.Address, Distance: document.getElementById('delivery-distance').value,
+                Items: cart, GrandTotal: totalAmount, Status: "Order Placed Successfully", Time: new Date().toLocaleString()
+            }).then(() => { alert(`?? Order Confirmed! ID: #${orderId}`); cart = []; updateCartTotals(); });
+        }
+    </script>
+</body>
+</html>
